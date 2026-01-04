@@ -15,8 +15,7 @@
 
 typedef struct {
     char topic[128];
-    char key[64];
-    char value[256];  // Aumentado para métricas más largas
+    char value[128];
 } Message;
 
 // ========================================
@@ -31,10 +30,10 @@ void end_connection(int socket_fd);
 void send_message(int socket_fd, const Message *message);
 
 // Metricas - cada una crea y envía su propio mensaje
-void get_cpu_usage(int socket_fd, const char *topic, const char *key);
-void get_memory_usage(int socket_fd, const char *topic, const char *key);
-void get_process_count(int socket_fd, const char *topic, const char *key);
-void get_uptime(int socket_fd, const char *topic, const char *key);
-void get_cpu_count(int socket_fd, const char *topic, const char *key);
+void get_cpu_usage(int socket_fd, const char *topic);
+void get_memory_usage(int socket_fd, const char *topic);
+void get_process_count(int socket_fd, const char *topic);
+void get_uptime(int socket_fd, const char *topic);
+void get_cpu_count(int socket_fd, const char *topic);
 
 #endif

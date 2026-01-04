@@ -5,12 +5,11 @@
 // ========================================
 
 // Métrica 0: CPU Load Average (1 minuto)
-void get_cpu_usage(int socket_fd, const char *topic, const char *key) {
+void get_cpu_usage(int socket_fd, const char *topic) {
     Message msg;
     memset(&msg, 0, sizeof(msg));
     
     strncpy(msg.topic, topic, sizeof(msg.topic) - 1);
-    strncpy(msg.key, key, sizeof(msg.key) - 1);
     
     FILE *fp = fopen("/proc/loadavg", "r");
     if (fp) {
@@ -26,12 +25,11 @@ void get_cpu_usage(int socket_fd, const char *topic, const char *key) {
 }
 
 // Métrica 1: Memoria (porcentaje usado)
-void get_memory_usage(int socket_fd, const char *topic, const char *key) {
+void get_memory_usage(int socket_fd, const char *topic) {
     Message msg;
     memset(&msg, 0, sizeof(msg));
     
     strncpy(msg.topic, topic, sizeof(msg.topic) - 1);
-    strncpy(msg.key, key, sizeof(msg.key) - 1);
     
     FILE *fp = fopen("/proc/meminfo", "r");
     if (fp) {
@@ -54,12 +52,11 @@ void get_memory_usage(int socket_fd, const char *topic, const char *key) {
 }
 
 // Métrica 2: Número de procesos en ejecución
-void get_process_count(int socket_fd, const char *topic, const char *key) {
+void get_process_count(int socket_fd, const char *topic) {
     Message msg;
     memset(&msg, 0, sizeof(msg));
     
     strncpy(msg.topic, topic, sizeof(msg.topic) - 1);
-    strncpy(msg.key, key, sizeof(msg.key) - 1);
     
     FILE *fp = fopen("/proc/loadavg", "r");
     if (fp) {
@@ -82,12 +79,11 @@ void get_process_count(int socket_fd, const char *topic, const char *key) {
 }
 
 // Métrica 3: Uptime del sistema (en horas)
-void get_uptime(int socket_fd, const char *topic, const char *key) {
+void get_uptime(int socket_fd, const char *topic) {
     Message msg;
     memset(&msg, 0, sizeof(msg));
     
     strncpy(msg.topic, topic, sizeof(msg.topic) - 1);
-    strncpy(msg.key, key, sizeof(msg.key) - 1);
     
     FILE *fp = fopen("/proc/uptime", "r");
     if (fp) {
@@ -104,12 +100,11 @@ void get_uptime(int socket_fd, const char *topic, const char *key) {
 }
 
 // Métrica 4: Número de CPUs
-void get_cpu_count(int socket_fd, const char *topic, const char *key) {
+void get_cpu_count(int socket_fd, const char *topic) {
     Message msg;
     memset(&msg, 0, sizeof(msg));
     
     strncpy(msg.topic, topic, sizeof(msg.topic) - 1);
-    strncpy(msg.key, key, sizeof(msg.key) - 1);
     
     FILE *fp = fopen("/proc/cpuinfo", "r");
     if (fp) {
