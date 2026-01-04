@@ -26,8 +26,7 @@ void init_clients(void) {
     for (int i = 0; i < MAX_CLIENTS; i++) {
         clients[i].fd = -1;
         clients[i].active = 0;
-        clients[i].type = CLIENT_UNKNOWN;
-        clients[i].subscription_count = 0;
+        memset(clients[i].topic, 0, MAX_TOPIC_LEN);
     }
 }
 
@@ -124,24 +123,22 @@ int initialize_broker(const char *broker_ip, int port) {
 void broadcast_message(Message *message) {
     pthread_mutex_lock(&client_mutex);
     
-    printf("Intentando difundir mensaje Tópico: '%s', Valor: '%s'\n", message->topic, message->value);
+    printf("[BROADCAST] Tópico: '%s', Valor: '%s'\n", message->topic, message->value);
+
+    // Construir string formateado: "MSG topic value"
+    char formatted_msg[256];
+    snprintf(formatted_msg, sizeof(formatted_msg), "MSG %s %s", message->topic, message->value);
 
     for (int i = 0; i < MAX_CLIENTS; i++) {
-        // Solo enviar a clientes activos
-        if (clients[i].active) {
-            // Verificar suscripción
-            int match = 0;
-            
-            if (compare_topics(clients[i].topic, message->topic)) match = 1;
-            
-            if (match) {
-                // Preparar mensaje de datos
-                Message out_msg = *message;
-                
-                if (send(clients[i].fd, &out_msg, sizeof(Message), 0) == -1) {
+        // Solo enviar a clientes activos con suscripción
+        if (clients[i].active && clients[i].topic[0] != '\0') {
+            // Verificar si el topic del cliente coincide
+            if (compare_topics(clients[i].topic, message->topic)) {
+                ssize_t sent = send(clients[i].fd, formatted_msg, strlen(formatted_msg), 0);
+                if (sent == -1) {
                     perror("Error enviando mensaje a consumidor");
                 } else {
-                    printf("Enviado a Cliente %d\n", i);
+                    printf(" -> Enviado a Cliente %d (suscrito a '%s')\n", i, clients[i].topic);
                 }
             }
         }
@@ -149,14 +146,56 @@ void broadcast_message(Message *message) {
     pthread_mutex_unlock(&client_mutex);
 }
 
-// Procesar mensaje recbido de un cliente
+// Procesar mensaje recibido de un cliente
 void process_message(int index, char *data) {
-    Message msg;
+    // Asegurar terminación nula
+    data[strcspn(data, "\r\n")] = '\0';
     
+    printf("[RECV Cliente %d] %s\n", index, data);
+    
+    // Parsear comando: "PUB topic value" o "SUB topic"
     char *saveptr;
-    char *line = strtok_r(data, " ", &saveptr);
-
+    char *cmd = strtok_r(data, " ", &saveptr);
     
+    if (cmd == NULL) return;
+    
+    if (strcmp(cmd, "PUB") == 0) {
+        // Formato: PUB topic/subtopic metric=value
+        char *topic = strtok_r(NULL, " ", &saveptr);
+        char *value = strtok_r(NULL, "", &saveptr); // Resto del string
+        
+        if (topic && value) {
+            // Crear estructura Message
+            Message msg;
+            memset(&msg, 0, sizeof(Message));
+            memcpy(msg.type, "PUB", 3);
+            strncpy(msg.topic, topic, MAX_TOPIC_LEN - 1);
+            strncpy(msg.value, value, MAX_VALUE_LEN - 1);
+            
+            printf("[PUB] Topic: %s, Value: %s\n", msg.topic, msg.value);
+            
+            // Difundir a consumers suscritos
+            broadcast_message(&msg);
+        }
+    } 
+    else if (strcmp(cmd, "SUB") == 0) {
+        // Formato: SUB topic
+        char *topic = strtok_r(NULL, " \r\n", &saveptr);
+        
+        if (topic) {
+            pthread_mutex_lock(&client_mutex);
+            strncpy(clients[index].topic, topic, MAX_TOPIC_LEN - 1);
+            clients[index].topic[MAX_TOPIC_LEN - 1] = '\0';
+            pthread_mutex_unlock(&client_mutex);
+            
+            printf("[SUB] Cliente %d suscrito a: %s\n", index, topic);
+            
+            // Enviar confirmación al cliente
+            char ack[64];
+            snprintf(ack, sizeof(ack), "OK Suscrito a %s", topic);
+            send(clients[index].fd, ack, strlen(ack), 0);
+        }
+    }
 }
 
 // Atender al cliente conectado
@@ -172,16 +211,15 @@ void *handle_client(void *arg) {
     clients[index].active = 1;
     pthread_mutex_unlock(&client_mutex);
 
+    // Recibir mensajes de texto
     while (1) {
-        ssize_t bytes_read = recv(client_fd, buffer, sizeof(buffer), 0);
+        memset(buffer, 0, sizeof(buffer));
+        ssize_t bytes_read = recv(client_fd, buffer, sizeof(buffer) - 1, 0);
 
         if (bytes_read <= 0) break;
 
-        if (bytes_read == sizeof(buffer)) {
-            process_message(index, buffer);
-        } else {
-            printf("Advertencia: Paquete incompleto recibido de Cliente %d\n", index);
-        }
+        buffer[bytes_read] = '\0'; // Asegurar terminación nula
+        process_message(index, buffer);
     }
 
     // Limpieza del cliente
@@ -190,8 +228,7 @@ void *handle_client(void *arg) {
     clients[index].fd = -1;
     clients[index].thread = 0;
     clients[index].active = 0;
-    clients[index].type = CLIENT_UNKNOWN;
-    clients[index].subscription_count = 0;
+    memset(clients[index].topic, 0, MAX_TOPIC_LEN);
     pthread_mutex_unlock(&client_mutex);
 
     printf("Cliente %d desconectado\n", index);

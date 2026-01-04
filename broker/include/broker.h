@@ -58,7 +58,7 @@ void init_clients(void);
 
 // -- Gestión de Mensajes --
 uint8_t compare_topics(const char *pattern, const char *topic);
-void broadcast_message(const Message *message);
+void broadcast_message(Message *message);
 void process_message(int client_index, char *data);
 
 #endif
