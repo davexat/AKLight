@@ -2,11 +2,14 @@
 #define BROKER_H
 
 #include <stdio.h>
-#include <stdlib.h>
 #include <stdint.h>
 #include <stdbool.h>
 #include <pthread.h>
 #include <string.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <sys/socket.h>
+#include <arpa/inet.h>
 
 // ========================================
 // DEFINICIONES Y CONSTANTES
@@ -32,7 +35,6 @@ typedef struct {
     int fd;
     uint8_t active;
     char topic[MAX_TOPIC_LEN];
-    pthread_t thread;
 } Client;
 
 // ========================================

@@ -1,10 +1,3 @@
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <unistd.h>
-#include <sys/socket.h>
-#include <arpa/inet.h>
-#include <pthread.h>
 #include "../include/broker.h"
 
 // ========================================
@@ -32,11 +25,8 @@ void init_clients(void) {
 
 // Buscar slot disponible para nuevo cliente
 int find_available_client_index(void) {
-    for (int i = 0; i < MAX_CLIENTS; i++) {
-        if (!clients[i].active) {
-            return i;
-        }
-    }
+    for (int i = 0; i < MAX_CLIENTS; i++)
+        if (clients[i].fd == -1) return i;
     return -1;
 }
 
@@ -208,7 +198,6 @@ void *handle_client(void *arg) {
 
     pthread_mutex_lock(&client_mutex);
     int client_fd = clients[index].fd;
-    clients[index].active = 1;
     pthread_mutex_unlock(&client_mutex);
 
     // Recibir mensajes de texto
@@ -226,7 +215,6 @@ void *handle_client(void *arg) {
     close(client_fd);
     pthread_mutex_lock(&client_mutex);
     clients[index].fd = -1;
-    clients[index].thread = 0;
     clients[index].active = 0;
     memset(clients[index].topic, 0, MAX_TOPIC_LEN);
     pthread_mutex_unlock(&client_mutex);
@@ -278,6 +266,7 @@ int main(int argc, char *argv[]) {
         }
         
         clients[index].fd = new_fd;
+        clients[index].active = 1;
         pthread_mutex_unlock(&client_mutex);
 
         // Crear argumento para el hilo
@@ -299,10 +288,6 @@ int main(int argc, char *argv[]) {
 
         // Guardar thread y liberar recursos automáticamente
         pthread_detach(thread);
-
-        pthread_mutex_lock(&client_mutex);
-        clients[index].thread = thread;
-        pthread_mutex_unlock(&client_mutex);
     }
 
     return 0;
