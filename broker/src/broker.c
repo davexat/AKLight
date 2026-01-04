@@ -7,8 +7,6 @@
 #include <pthread.h>
 #include "../include/broker.h"
 
-#define MAX_CLIENTS 10
-
 // ========================================
 // VARIABLES GLOBALES
 // ========================================
@@ -18,6 +16,57 @@ Client clients[MAX_CLIENTS];
 
 // Semáforo de clientes
 pthread_mutex_t client_mutex = PTHREAD_MUTEX_INITIALIZER;
+
+// ========================================
+// FUNCIONES DE UTILIDAD
+// ========================================
+
+// Inicializar arreglo de clientes
+void init_clients(void) {
+    for (int i = 0; i < MAX_CLIENTS; i++) {
+        clients[i].fd = -1;
+        clients[i].active = 0;
+        clients[i].type = CLIENT_UNKNOWN;
+        clients[i].subscription_count = 0;
+    }
+}
+
+// Buscar slot disponible para nuevo cliente
+int find_available_client_index(void) {
+    for (int i = 0; i < MAX_CLIENTS; i++) {
+        if (!clients[i].active) {
+            return i;
+        }
+    }
+    return -1;
+}
+
+// Comparar tópicos retorna 1 si coinciden, 0 si no
+uint8_t compare_topics(const char *pattern, const char *topic) {
+    // Caso exacto
+    if (strcmp(pattern, topic) == 0) return 1;
+
+    // Caso wildcard '#'
+    size_t len_p = strlen(pattern);
+    
+    // Verificar si termina en '#'
+    if (len_p > 0 && pattern[len_p - 1] == '#') {
+        // Verificar prefijo antes del '#'
+        if (len_p == 1) return 1;
+        
+        // Si pattern es "prefix/#", verificar que topic empiece con "prefix/"
+        char prefix[128];
+        strncpy(prefix, pattern, len_p - 1);
+        prefix[len_p - 1] = '\0';
+        
+        // Verificamos si comienza con el prefijo
+        if (strncmp(topic, prefix, strlen(prefix)) == 0) {
+            return 1;
+        }
+    }
+    
+    return 0;
+}
 
 // ========================================
 // FUNCIONES DEL SERVIDOR
@@ -71,8 +120,42 @@ int initialize_broker(const char *broker_ip, int port) {
     return server_fd;
 }
 
-// Procesar mensaje
-void process_message(int index, char *buffer) {
+// Enviar mensaje a clientes suscritos
+void broadcast_message(Message *message) {
+    pthread_mutex_lock(&client_mutex);
+    
+    printf("Intentando difundir mensaje Tópico: '%s', Valor: '%s'\n", message->topic, message->value);
+
+    for (int i = 0; i < MAX_CLIENTS; i++) {
+        // Solo enviar a clientes activos
+        if (clients[i].active) {
+            // Verificar suscripción
+            int match = 0;
+            
+            if (compare_topics(clients[i].topic, message->topic)) match = 1;
+            
+            if (match) {
+                // Preparar mensaje de datos
+                Message out_msg = *message;
+                
+                if (send(clients[i].fd, &out_msg, sizeof(Message), 0) == -1) {
+                    perror("Error enviando mensaje a consumidor");
+                } else {
+                    printf("Enviado a Cliente %d\n", i);
+                }
+            }
+        }
+    }
+    pthread_mutex_unlock(&client_mutex);
+}
+
+// Procesar mensaje recbido de un cliente
+void process_message(int index, char *data) {
+    Message msg;
+    
+    char *saveptr;
+    char *line = strtok_r(data, " ", &saveptr);
+
     
 }
 
@@ -89,20 +172,16 @@ void *handle_client(void *arg) {
     clients[index].active = 1;
     pthread_mutex_unlock(&client_mutex);
 
-    // Recepción de comandos
     while (1) {
-        memset(buffer, 0, sizeof(buffer));
-        bytes_read = recv(client_fd, buffer, sizeof(buffer), 0);
+        ssize_t bytes_read = recv(client_fd, buffer, sizeof(buffer), 0);
 
         if (bytes_read <= 0) break;
 
-        buffer[bytes_read] = '\0';
-
-        // Imprimir mensaje recibido
-        printf("Mensaje de cliente %d recibido: %s\n", index, buffer);
-        
-        // Procesar mensaje
-        process_message(index, buffer);
+        if (bytes_read == sizeof(buffer)) {
+            process_message(index, buffer);
+        } else {
+            printf("Advertencia: Paquete incompleto recibido de Cliente %d\n", index);
+        }
     }
 
     // Limpieza del cliente
@@ -111,8 +190,8 @@ void *handle_client(void *arg) {
     clients[index].fd = -1;
     clients[index].thread = 0;
     clients[index].active = 0;
-    clients[index].has_topic = 0;
-    memset(clients[index].topic, 0, sizeof(clients[index].topic));
+    clients[index].type = CLIENT_UNKNOWN;
+    clients[index].subscription_count = 0;
     pthread_mutex_unlock(&client_mutex);
 
     printf("Cliente %d desconectado\n", index);
@@ -123,6 +202,9 @@ void *handle_client(void *arg) {
 // FUNCIÓN PRINCIPAL
 // ========================================
 int main(int argc, char *argv[]) {
+    // 0. Inicializar clientes
+    init_clients();
+
     // 1. Parsear argumentos
     if (argc < 3) {
         printf("Uso: %s <ip_broker> <puerto>\n", argv[0]);

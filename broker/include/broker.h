@@ -1,62 +1,64 @@
 #ifndef BROKER_H
 #define BROKER_H
 
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
 #include <stdbool.h>
+#include <pthread.h>
+#include <string.h>
+
+// ========================================
+// DEFINICIONES Y CONSTANTES
+// ========================================
+
+#define MAX_CLIENTS 10
+#define MAX_TOPIC_LEN 62
+#define MAX_VALUE_LEN 62
 
 // ========================================
 // ESTRUCTURAS
 // ========================================
 
-// Mensaje
+// Estructura de Mensaje (topic value)
 typedef struct {
-    char topic[128];
-    char value[128];
+    char type[3];
+    char topic[MAX_TOPIC_LEN];
+    char value[MAX_VALUE_LEN];
 } Message;
 
 // Cliente
 typedef struct {
     int fd;
     uint8_t active;
-    uint8_t has_topic;
-    char topic[128];
+    char topic[MAX_TOPIC_LEN];
     pthread_t thread;
 } Client;
 
+// ========================================
+// VARIABLES GLOBALES EXTERNAS
+// ========================================
+
 // Lista de clientes
-extern Client clients[10];
+extern Client clients[MAX_CLIENTS];
 
 // Semáforo de clientes
 extern pthread_mutex_t client_mutex;
 
 // ========================================
-// FUNCIONES DE SERVIDOR
+// FUNCIONES
 // ========================================
 
-// Conexión
+// -- Servidor --
 int initialize_broker(const char *broker_ip, int port);
-void end_broker(int socket_fd);
 
-// ========================================
-// FUNCIONES DE GESTIÓN DE CLIENTES
-// ========================================
+// -- Gestión de Clientes --
+int find_available_client_index(void);
+void init_clients(void);
 
-// Encontrar slot libre
-int find_free_slot(void);
-
-// Inicializar cliente
-void initialize_client(int slot);
-
-// Finalizar cliente
-void end_client(int slot);
-
-// ========================================
-// FUNCIONES DE GESTIÓN DE MENSAJES
-// ========================================
-
-// Comparar tópicos
-uint8_t compare_topics(const char *topic1, const char *topic2);
-
-// Envía el mensaje a los clientes correspondientes
+// -- Gestión de Mensajes --
+uint8_t compare_topics(const char *pattern, const char *topic);
 void broadcast_message(const Message *message);
+void process_message(int client_index, char *data);
 
 #endif
