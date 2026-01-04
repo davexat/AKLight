@@ -12,6 +12,7 @@ int initialize_connection(const char *broker_ip, int port) {
     }
 
     struct sockaddr_in addr;
+    memset(&addr, 0, sizeof(addr));
     addr.sin_family = AF_INET;
     addr.sin_port = htons(port);
     
@@ -33,24 +34,34 @@ int initialize_connection(const char *broker_ip, int port) {
 }
 
 void end_connection(int socket_fd) {
-    close(socket_fd);
-    printf("Conexión cerrada\n");
+    if (socket_fd >= 0) {
+        close(socket_fd);
+        printf("Conexión cerrada.\n");
+    }
 }
 
 // ========================================
 // ENVÍO DE MENSAJE
 // ========================================
 
-void send_message(int socket_fd, const Message *message) {
-    // Enviar la estructura serializada
-    ssize_t bytes_sent = send(socket_fd, message, sizeof(Message), 0);
+void send_message(int socket_fd, Message *message) {
+    // 1. Establecer Tipo
+    memcpy(message->type, MSG_TYPE_PUB, 3);
     
-    if (bytes_sent == -1) {
-        perror("send");
-        return;
+    // 2. Copiar Tópico (asegurando límite)
+    strncpy(message->topic, topic, MAX_TOPIC_LEN - 1);
+    
+    // 3. Copiar Valor
+    strncpy(message->value, value, MAX_VALUE_LEN - 1);
+    
+    // Enviar estructura binaria completa
+    ssize_t sent = send(socket_fd, message, sizeof(Message), 0);
+    
+    if (sent != sizeof(Message)) {
+        perror("Error enviando mensaje");
+    } else {
+        printf("[PUB] %s -> %s\n", message->topic, message->value);
     }
-    
-    printf("Enviado: [%s] %s -> %s\n", message->topic, message->key, message->value);
 }
 
 // ========================================
@@ -59,9 +70,9 @@ void send_message(int socket_fd, const Message *message) {
 
 int main(int argc, char *argv[]) {
     // 1. Parsear argumentos
-    if (argc < 7) {
-        printf("Uso: %s <ip_broker> <puerto> <clave> <topico_base> <metric1> <metric2>\n", argv[0]);
-        printf("Ejemplo: %s 127.0.0.1 9092 container1 metrics/container1 0 1\n", argv[0]);
+    if (argc < 6) {
+        printf("Uso: %s <ip_broker> <puerto> <topico_base> <metric1> <metric2>\n", argv[0]);
+        printf("Ejemplo: %s 127.0.0.1 9092 metrics/container1 0 1\n", argv[0]);
         printf("\nMétricas disponibles:\n");
         printf("  0 = CPU Load (load average 1min)\n");
         printf("  1 = Memoria (porcentaje usado)\n");
@@ -73,10 +84,9 @@ int main(int argc, char *argv[]) {
 
     char *broker_ip = argv[1];
     int port = atoi(argv[2]);
-    char *key = argv[3];
-    char *base_topic = argv[4];
-    int metric1 = atoi(argv[5]);
-    int metric2 = atoi(argv[6]);
+    char *base_topic = argv[3];
+    int metric1 = atoi(argv[4]);
+    int metric2 = atoi(argv[5]);
 
     // Validar métricas
     if (metric1 < 0 || metric1 > 4 || metric2 < 0 || metric2 > 4) {
@@ -103,33 +113,34 @@ int main(int argc, char *argv[]) {
     
     snprintf(topic1, sizeof(topic1), "%s/%s", base_topic, metric_names[metric1]);
     snprintf(topic2, sizeof(topic2), "%s/%s", base_topic, metric_names[metric2]);
+
+    int n = 5;
     
-    printf("\nIniciando envío de métricas cada 5 segundos...\n");
+    printf("\nIniciando envío de métricas cada %d segundos...\n", n);
     printf("Métrica 1: %s (tipo: %s)\n", topic1, metric_names[metric1]);
     printf("Métrica 2: %s (tipo: %s)\n", topic2, metric_names[metric2]);
-    printf("Clave: %s\n\n", key);
     
     // 4. Bucle de envío de mensajes
     while (1) {
         // Enviar métrica 1
         switch (metric1) {
-            case 0: get_cpu_usage(socket_fd, topic1, key); break;
-            case 1: get_memory_usage(socket_fd, topic1, key); break;
-            case 2: get_process_count(socket_fd, topic1, key); break;
-            case 3: get_uptime(socket_fd, topic1, key); break;
-            case 4: get_cpu_count(socket_fd, topic1, key); break;
+            case 0: get_metric_load(socket_fd, topic1); break;
+            case 1: get_metric_mem(socket_fd, topic1); break;
+            case 2: get_metric_threads(socket_fd, topic1); break;
+            case 3: get_uptime(socket_fd, topic1); break;
+            case 4: get_cpu_count(socket_fd, topic1); break;
         }
         
         // Enviar métrica 2
         switch (metric2) {
-            case 0: get_cpu_usage(socket_fd, topic2, key); break;
-            case 1: get_memory_usage(socket_fd, topic2, key); break;
-            case 2: get_process_count(socket_fd, topic2, key); break;
-            case 3: get_uptime(socket_fd, topic2, key); break;
-            case 4: get_cpu_count(socket_fd, topic2, key); break;
+            case 0: get_metric_load(socket_fd, topic2); break;
+            case 1: get_metric_mem(socket_fd, topic2); break;
+            case 2: get_metric_threads(socket_fd, topic2); break;
+            case 3: get_uptime(socket_fd, topic2); break;
+            case 4: get_cpu_count(socket_fd, topic2); break;
         }
         
-        sleep(5);
+        sleep(n);
     }
 
     end_connection(socket_fd);

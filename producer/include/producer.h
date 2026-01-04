@@ -13,9 +13,13 @@
 // ESTRUCTURA DEL MENSAJE
 // ========================================
 
+#define MAX_TOPIC_LEN 62
+#define MAX_VALUE_LEN 62
+
 typedef struct {
-    char topic[128];
-    char value[128];
+    char type[3];
+    char topic[MAX_TOPIC_LEN];
+    char value[MAX_VALUE_LEN];
 } Message;
 
 // ========================================
@@ -26,14 +30,13 @@ typedef struct {
 int initialize_connection(const char *broker_ip, int port);
 void end_connection(int socket_fd);
 
-// Envía el mensaje formateado (clave topico/subtopico1/.../mensaje)
-void send_message(int socket_fd, const Message *message);
+// Envía el mensaje formateado (topico/subtopico metrica=valor)
+void send_message(int socket_fd, Message *message);
 
-// Metricas - cada una crea y envía su propio mensaje
-void get_cpu_usage(int socket_fd, const char *topic);
-void get_memory_usage(int socket_fd, const char *topic);
-void get_process_count(int socket_fd, const char *topic);
-void get_uptime(int socket_fd, const char *topic);
-void get_cpu_count(int socket_fd, const char *topic);
+// -- Métricas Simples --
+// Escriben el valor en el buffer proporcionado
+void get_metric_load(char *buffer);
+void get_metric_mem(char *buffer);
+void get_metric_threads(char *buffer);
 
 #endif
