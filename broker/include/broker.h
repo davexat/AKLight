@@ -33,7 +33,6 @@ typedef struct {
 // Cliente
 typedef struct {
     int fd;
-    uint8_t active;
     char topic[MAX_TOPIC_LEN];
 } Client;
 

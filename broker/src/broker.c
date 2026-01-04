@@ -18,7 +18,6 @@ pthread_mutex_t client_mutex = PTHREAD_MUTEX_INITIALIZER;
 void init_clients(void) {
     for (int i = 0; i < MAX_CLIENTS; i++) {
         clients[i].fd = -1;
-        clients[i].active = 0;
         memset(clients[i].topic, 0, MAX_TOPIC_LEN);
     }
 }
@@ -120,8 +119,8 @@ void broadcast_message(Message *message) {
     snprintf(formatted_msg, sizeof(formatted_msg), "MSG %s %s", message->topic, message->value);
 
     for (int i = 0; i < MAX_CLIENTS; i++) {
-        // Solo enviar a clientes activos con suscripción
-        if (clients[i].active && clients[i].topic[0] != '\0') {
+        // Solo enviar a clientes conectados con suscripción
+        if (clients[i].fd != -1 && clients[i].topic[0] != '\0') {
             // Verificar si el topic del cliente coincide
             if (compare_topics(clients[i].topic, message->topic)) {
                 ssize_t sent = send(clients[i].fd, formatted_msg, strlen(formatted_msg), 0);
@@ -215,7 +214,6 @@ void *handle_client(void *arg) {
     close(client_fd);
     pthread_mutex_lock(&client_mutex);
     clients[index].fd = -1;
-    clients[index].active = 0;
     memset(clients[index].topic, 0, MAX_TOPIC_LEN);
     pthread_mutex_unlock(&client_mutex);
 
@@ -266,7 +264,6 @@ int main(int argc, char *argv[]) {
         }
         
         clients[index].fd = new_fd;
-        clients[index].active = 1;
         pthread_mutex_unlock(&client_mutex);
 
         // Crear argumento para el hilo
