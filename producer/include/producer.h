@@ -10,19 +10,6 @@
 #include <arpa/inet.h>
 
 // ========================================
-// ESTRUCTURA DEL MENSAJE
-// ========================================
-
-#define MAX_TOPIC_LEN 62
-#define MAX_VALUE_LEN 62
-
-typedef struct {
-    char type[3];
-    char topic[MAX_TOPIC_LEN];
-    char value[MAX_VALUE_LEN];
-} Message;
-
-// ========================================
 // FUNCIONES
 // ========================================
 
@@ -30,13 +17,14 @@ typedef struct {
 int initialize_connection(const char *broker_ip, int port);
 void end_connection(int socket_fd);
 
-// Envía el mensaje formateado (topico/subtopico metrica=valor)
-void send_message(int socket_fd, Message *message);
+// Envía el mensaje al broker con el formato (PUB topic/subtopic metric=value)
+void send_string(int socket_fd, const char *message);
 
-// -- Métricas Simples --
-// Escriben el valor en el buffer proporcionado
-void get_metric_load(char *buffer);
-void get_metric_mem(char *buffer);
-void get_metric_threads(char *buffer);
+// Métricas - devuelven string formateado "metric=value"
+void get_metric_load(char *buffer, size_t size);
+void get_metric_mem(char *buffer, size_t size);
+void get_metric_threads(char *buffer, size_t size);
+void get_metric_uptime(char *buffer, size_t size);
+void get_metric_cpus(char *buffer, size_t size);
 
 #endif
