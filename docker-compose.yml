@@ -9,26 +9,21 @@ services:
     networks:
       - aklight-network
 
-  producer1:
-    build: ./producer
-    container_name: aklight-producer1
+  producer:
+    build:
+      context: .
+      dockerfile: producer/Dockerfile
+    container_name: aklight-producer
     depends_on:
       - broker
-    command: ["./producer", "broker", "9092", "metrics/producer1", "0", "1"]
-    networks:
-      - aklight-network
-
-  producer2:
-    build: ./producer
-    container_name: aklight-producer2
-    depends_on:
-      - broker
-    command: ["./producer", "broker", "9092", "metrics/producer2", "2", "3"]
+    command: ["./producer", "broker", "9092", "metrics/container1", "0", "1"]
     networks:
       - aklight-network
 
   consumer:
-    build: ./consumer
+    build:
+      context: .
+      dockerfile: consumer/Dockerfile
     container_name: aklight-consumer
     depends_on:
       - broker

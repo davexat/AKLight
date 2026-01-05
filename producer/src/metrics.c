@@ -104,7 +104,7 @@ void get_metric_cpus(char *buffer, size_t size) {
 }
 
 // ========================================
-// HELPER FUNCTION
+// FUNCION DE APOYO
 // ========================================
 
 // Obtener métrica por ID (elimina duplicación de switch)

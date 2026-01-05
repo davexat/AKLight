@@ -2,9 +2,11 @@ FROM alpine:latest
 
 RUN apk add --no-cache gcc musl-dev make
 
-WORKDIR /app
+WORKDIR /app/producer
 
-COPY . .
+# Copiar todo desde el contexto raíz (que incluye common/)
+COPY producer/ .
+COPY common/ ../common/
 
 RUN make clean || true
 RUN make
