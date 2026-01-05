@@ -32,8 +32,10 @@ typedef struct {
 
 // Cliente
 typedef struct {
-    int fd;
-    char topic[MAX_TOPIC_LEN];
+    int fd;                     // -1 = slot libre, >=0 = conectado
+    char topic[MAX_TOPIC_LEN];  // "" = no suscrito, "topic" = suscrito
+    char line_buffer[256];      // Buffer para acumular línea incompleta
+    size_t buffer_pos;          // Posición actual en line_buffer
 } Client;
 
 // ========================================
