@@ -1,0 +1,32 @@
+version: '3.8'
+
+services:
+  broker:
+    build: ./broker
+    container_name: aklight-broker
+    ports:
+      - "9092:9092"
+    networks:
+      - aklight-network
+
+  producer1:
+    build: ./producer
+    container_name: aklight-producer1
+    depends_on:
+      - broker
+    command: ["./producer", "broker", "9092", "metrics/producer1", "0", "1"]
+    networks:
+      - aklight-network
+
+  producer2:
+    build: ./producer
+    container_name: aklight-producer2
+    depends_on:
+      - broker
+    command: ["./producer", "broker", "9092", "metrics/producer2", "2", "3"]
+    networks:
+      - aklight-network
+
+networks:
+  aklight-network:
+    driver: bridge

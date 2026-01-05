@@ -243,14 +243,14 @@ int main(int argc, char *argv[]) {
     init_clients();
 
     // 1. Parsear argumentos
-    if (argc < 3) {
-        printf("Uso: %s <ip_broker> <puerto>\n", argv[0]);
-        printf("Ejemplo: %s 127.0.0.1 9092\n", argv[0]);
+    if (argc < 2) {
+        printf("Uso: %s <puerto>\n", argv[0]);
+        printf("Ejemplo: %s 9092\n", argv[0]);
         return 1;
     }
 
-    // 2. Inicializar broker
-    int server_fd = initialize_broker(argv[1], atoi(argv[2]));
+    // 2. Inicializar broker (escuchar en todas las interfaces)
+    int server_fd = initialize_broker("0.0.0.0", atoi(argv[1]));
     if (server_fd == -1) return 1;
     printf("Broker inicializado, esperando conexiones...\n");
 
