@@ -27,6 +27,15 @@ services:
     networks:
       - aklight-network
 
+  consumer:
+    build: ./consumer
+    container_name: aklight-consumer
+    depends_on:
+      - broker
+    command: ["./consumer", "broker", "9092", "metrics/#"]
+    networks:
+      - aklight-network
+
 networks:
   aklight-network:
     driver: bridge
