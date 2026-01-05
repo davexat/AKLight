@@ -1,10 +1,32 @@
 #include "../include/consumer.h"
 
 // ========================================
+// VARIABLES GLOBALES
+// ========================================
+
+volatile sig_atomic_t running = 1;
+int consumer_fd_global = -1;
+
+// ========================================
+// MANEJADOR DE SEÑALES
+// ========================================
+
+void signal_handler(int signum) {
+    (void)signum;
+    running = 0;
+    printf("\n\nSeñal recibida, cerrando consumer...\n");
+    if (consumer_fd_global >= 0) {
+        close(consumer_fd_global);
+    }
+}
+
+// ========================================
 // CONEXIÓN
 // ========================================
 
 int initialize_connection(const char *broker_ip, int port) {
+    printf("Intentando conectar al broker en %s:%d...\n", broker_ip, port);
+    
     int socket_fd = socket(AF_INET, SOCK_STREAM, 0);
     if (socket_fd == -1) {
         perror("socket");
@@ -24,7 +46,7 @@ int initialize_connection(const char *broker_ip, int port) {
         
         int ret = getaddrinfo(broker_ip, NULL, &hints, &result);
         if (ret != 0) {
-            fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(ret));
+            fprintf(stderr, "No se pudo resolver el host del broker: %s\n", broker_ip);
             close(socket_fd);
             return -1;
         }
@@ -66,6 +88,7 @@ void subscribe_to_topic(int socket_fd, const char *topic) {
     }
     
     printf("Suscrito a: %s\n", topic);
+    fflush(stdout);
 }
 
 // ========================================
@@ -77,15 +100,18 @@ void listen_messages(int socket_fd) {
     char line_buffer[512];
     size_t line_pos = 0;
     
-    printf("\n=== Esperando mensajes ===\n\n");
+    printf("\n=== Esperando mensajes (Ctrl+C para salir) ===\n\n");
+    fflush(stdout);
     
-    while (1) {
+    while (running) {
         ssize_t n = recv(socket_fd, buffer, sizeof(buffer) - 1, 0);
         if (n <= 0) {
             if (n == 0) {
                 printf("\nBroker cerró la conexión\n");
             } else {
-                perror("recv");
+                if (running) {
+                    perror("recv");
+                }
             }
             break;
         }
@@ -119,6 +145,10 @@ void listen_messages(int socket_fd) {
 // ========================================
 
 int main(int argc, char *argv[]) {
+    // Configurar manejadores de señales
+    signal(SIGINT, signal_handler);
+    signal(SIGPIPE, SIG_IGN);
+    
     // 1. Parsear argumentos
     if (argc < 4) {
         printf("Uso: %s <ip_broker> <puerto> <topico>\n", argv[0]);
@@ -134,7 +164,11 @@ int main(int argc, char *argv[]) {
 
     // 2. Conectar al broker
     int socket_fd = initialize_connection(broker_ip, port);
-    if (socket_fd == -1) return 1;
+    if (socket_fd == -1) {
+        fprintf(stderr, "No se pudo conectar al broker. Abortando...\n");
+        return 1;
+    }
+    consumer_fd_global = socket_fd;
 
     // 3. Suscribirse al tópico
     subscribe_to_topic(socket_fd, topic);
@@ -143,6 +177,8 @@ int main(int argc, char *argv[]) {
     listen_messages(socket_fd);
 
     // 5. Limpiar
+    printf("\n");
     end_connection(socket_fd);
+    printf("Consumer cerrado\n");
     return 0;
 }

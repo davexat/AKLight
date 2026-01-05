@@ -14,6 +14,19 @@ pthread_mutex_t client_mutex = PTHREAD_MUTEX_INITIALIZER;
 // FUNCIONES DE UTILIDAD
 // ========================================
 
+// Control de ejecución
+volatile sig_atomic_t running = 1;
+int server_fd_global = -1;
+
+void signal_handler(int signum) {
+    (void)signum;
+    running = 0;
+    printf("\n\nSeñal recibida, cerrando broker...\n");
+    if (server_fd_global >= 0) {
+        close(server_fd_global);
+    }
+}
+
 // Inicializar arreglo de clientes
 void init_clients(void) {
     for (int i = 0; i < MAX_CLIENTS; i++) {
@@ -134,7 +147,12 @@ void broadcast_message(Message *message) {
     pthread_mutex_unlock(&client_mutex);
     
     for (int i = 0; i < target_count; i++) {
-        send(target_fds[i], formatted_msg, strlen(formatted_msg), MSG_NOSIGNAL);
+        ssize_t sent = send(target_fds[i], formatted_msg, strlen(formatted_msg), MSG_NOSIGNAL);
+        if (sent == -1) {
+            printf("[MSG] envío fallido a fd=%d\n", target_fds[i]);
+        } else {
+            printf("[MSG] enviado a fd=%d\n", target_fds[i]);
+        }
     }
 }
 
@@ -145,8 +163,8 @@ static void handle_client_line(int client_index, char *line) {
     
     if (!cmd) return;
     
+    // Formato: PUB topic/subtopic metric=value
     if (strcmp(cmd, "PUB") == 0) {
-        // Formato: PUB topic/subtopic metric=value
         char *topic = strtok_r(NULL, " ", &saveptr);
         char *value = strtok_r(NULL, "", &saveptr);
         
@@ -157,6 +175,7 @@ static void handle_client_line(int client_index, char *line) {
             strncpy(msg.topic, topic, MAX_TOPIC_LEN - 1);
             strncpy(msg.value, value, MAX_VALUE_LEN - 1);
             
+            printf("[PUB] fd=%d topic=%s\n", clients[client_index].fd, msg.topic);
             broadcast_message(&msg);
         }
     } 
@@ -167,12 +186,14 @@ static void handle_client_line(int client_index, char *line) {
             pthread_mutex_lock(&client_mutex);
             strncpy(clients[client_index].topic, topic, MAX_TOPIC_LEN - 1);
             clients[client_index].topic[MAX_TOPIC_LEN - 1] = '\0';
+            int client_fd = clients[client_index].fd;
             pthread_mutex_unlock(&client_mutex);
             
-            // Confirmación fuera de mutex
+            printf("[SUB] fd=%d topic=%s\n", client_fd, topic);
+            
             char ack[64];
             snprintf(ack, sizeof(ack), "OK %s\n", topic);
-            send(clients[client_index].fd, ack, strlen(ack), MSG_NOSIGNAL);
+            send(client_fd, ack, strlen(ack), MSG_NOSIGNAL);
         }
     }
 }
@@ -182,7 +203,7 @@ void *handle_client(void *arg) {
     int index = *(int *)arg;
     free(arg);
     
-    // Copiar FD bajo mutex (ownership transfer)
+    // Copiar FD
     pthread_mutex_lock(&client_mutex);
     int client_fd = clients[index].fd;
     pthread_mutex_unlock(&client_mutex);
@@ -227,12 +248,16 @@ void *handle_client(void *arg) {
     
     // Limpieza
     close(client_fd);
+    
     pthread_mutex_lock(&client_mutex);
+    int fd_copy = clients[index].fd;
     clients[index].fd = -1;
     memset(clients[index].topic, 0, MAX_TOPIC_LEN);
     clients[index].buffer_pos = 0;
     pthread_mutex_unlock(&client_mutex);
     
+    printf("[DISCONNECT] Cliente fd=%d desconectado\n", fd_copy);
+    fflush(stdout);
     return NULL;
 }
 
@@ -240,6 +265,10 @@ void *handle_client(void *arg) {
 // FUNCIÓN PRINCIPAL
 // ========================================
 int main(int argc, char *argv[]) {
+    // Configurar manejadores de señales
+    signal(SIGINT, signal_handler);
+    signal(SIGPIPE, SIG_IGN);
+    
     // 0. Inicializar clientes
     init_clients();
 
@@ -253,20 +282,27 @@ int main(int argc, char *argv[]) {
     // 2. Inicializar broker (escuchar en todas las interfaces)
     int server_fd = initialize_broker("0.0.0.0", atoi(argv[1]));
     if (server_fd == -1) return 1;
+    server_fd_global = server_fd;
+    
     printf("Broker inicializado, esperando conexiones...\n");
+    printf("Presiona Ctrl+C para detener\n\n");
+    fflush(stdout);
 
     // 3. Bucle principal
-    while (1) {
+    while (running) {
         struct sockaddr_in client_addr;
         socklen_t client_addr_len = sizeof(client_addr);
 
         int new_fd = accept(server_fd, (struct sockaddr *)&client_addr, &client_addr_len);
         if (new_fd < 0) {
-            perror("Error al aceptar una conexión");
+            if (running) {
+                perror("Error al aceptar una conexión");
+            }
             continue;
         }
 
-        printf("Conexión aceptada de %s:%d\n", inet_ntoa(client_addr.sin_addr), ntohs(client_addr.sin_port));
+        printf("[CONNECT] Nueva conexión (fd=%d)\n", new_fd);
+        fflush(stdout);
 
         // Agregar cliente a la lista de clientes
         pthread_mutex_lock(&client_mutex);
@@ -281,11 +317,10 @@ int main(int argc, char *argv[]) {
         clients[index].fd = new_fd;
         pthread_mutex_unlock(&client_mutex);
 
-        // Crear argumento para el hilo
+        // Crear hilo para el cliente
         int *arg = malloc(sizeof(int));
         *arg = index;
 
-        // Crear hilo para el cliente
         pthread_t thread;
         if (pthread_create(&thread, NULL, handle_client, arg) != 0) {
             perror("Error al crear el hilo para el cliente");
@@ -298,9 +333,12 @@ int main(int argc, char *argv[]) {
             continue;
         }
 
-        // Guardar thread y liberar recursos automáticamente
+        // Detach thread para que se libere automáticamente
         pthread_detach(thread);
     }
-
+    
+    printf("\nCerrando broker...\n");
+    close(server_fd);
+    printf("Broker cerrado\n");
     return 0;
 }
