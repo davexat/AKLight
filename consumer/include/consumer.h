@@ -31,10 +31,6 @@ extern int consumer_fd_global;
 // Manejador de señales (SIGINT)
 void signal_handler(int signum);
 
-// Conexión al broker
-int initialize_connection(const char *broker_ip, int port);
-void end_connection(int socket_fd);
-
 // Suscripción y recepción
 void subscribe_to_topic(int socket_fd, const char *topic);
 void listen_messages(int socket_fd);

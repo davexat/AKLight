@@ -102,3 +102,20 @@ void get_metric_cpus(char *buffer, size_t size) {
         snprintf(buffer, size, "cpus=0");
     }
 }
+
+// ========================================
+// HELPER FUNCTION
+// ========================================
+
+// Obtener métrica por ID (elimina duplicación de switch)
+void get_metric_by_id(int metric_id, char *buffer, size_t size) {
+    switch (metric_id) {
+        case 0: get_metric_load(buffer, size); break;
+        case 1: get_metric_mem(buffer, size); break;
+        case 2: get_metric_threads(buffer, size); break;
+        case 3: get_metric_uptime(buffer, size); break;
+        case 4: get_metric_cpus(buffer, size); break;
+        default: snprintf(buffer, size, "error=invalid_metric"); break;
+    }
+}
+

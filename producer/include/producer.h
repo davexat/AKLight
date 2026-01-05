@@ -30,10 +30,6 @@ extern volatile sig_atomic_t running;
 // Manejador de señales (SIGINT)
 void signal_handler(int signum);
 
-// Conexión al broker
-int initialize_connection(const char *broker_ip, int port);
-void end_connection(int socket_fd);
-
 // Envío de mensajes
 void send_string(int socket_fd, const char *message);
 
@@ -43,5 +39,8 @@ void get_metric_mem(char *buffer, size_t size);
 void get_metric_threads(char *buffer, size_t size);
 void get_metric_uptime(char *buffer, size_t size);
 void get_metric_cpus(char *buffer, size_t size);
+
+// Helper para obtener métrica por ID
+void get_metric_by_id(int metric_id, char *buffer, size_t size);
 
 #endif
