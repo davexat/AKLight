@@ -46,11 +46,12 @@ uint8_t compare_topics(const char *pattern, const char *topic) {
         
         // Si pattern es "prefix/#", verificar que topic empiece con "prefix/"
         char prefix[128];
-        strncpy(prefix, pattern, len_p - 1);
-        prefix[len_p - 1] = '\0';
+        size_t prefix_len = len_p - 1;
+        memcpy(prefix, pattern, prefix_len);
+        prefix[prefix_len] = '\0';
         
         // Verificamos si comienza con el prefijo
-        if (strncmp(topic, prefix, strlen(prefix)) == 0) {
+        if (strncmp(topic, prefix, prefix_len) == 0) {
             return 1;
         }
     }

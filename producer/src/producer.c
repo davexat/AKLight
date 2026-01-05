@@ -16,11 +16,22 @@ int initialize_connection(const char *broker_ip, int port) {
     addr.sin_family = AF_INET;
     addr.sin_port = htons(port);
     
-    // Convertir IP string a formato de red
-    if (inet_pton(AF_INET, broker_ip, &addr.sin_addr) <= 0) {
-        perror("inet_pton");
-        close(socket_fd);
-        return -1;
+    if (inet_pton(AF_INET, broker_ip, &addr.sin_addr) != 1) {
+        struct addrinfo hints, *result;
+        memset(&hints, 0, sizeof(hints));
+        hints.ai_family = AF_INET;
+        hints.ai_socktype = SOCK_STREAM;
+        
+        int ret = getaddrinfo(broker_ip, NULL, &hints, &result);
+        if (ret != 0) {
+            fprintf(stderr, "getaddrinfo: %s\n", gai_strerror(ret));
+            close(socket_fd);
+            return -1;
+        }
+        
+        struct sockaddr_in *resolved = (struct sockaddr_in *)result->ai_addr;
+        addr.sin_addr = resolved->sin_addr;
+        freeaddrinfo(result);
     }
 
     if (connect(socket_fd, (struct sockaddr *)&addr, sizeof(addr)) == -1) {
